@@ -55,6 +55,8 @@ case "$BASE" in main|master) TRUNK=1 ;; esac
 if [ -z "$BASE" ]; then
   if g show-ref --verify --quiet refs/remotes/origin/develop || g show-ref --verify --quiet refs/heads/develop; then
     BASE=develop
+  elif g show-ref --verify --quiet refs/remotes/origin/dev; then
+    BASE=dev   # same role, shorter name; some teams use it
   else
     NO_DEVELOP=1
     BASE=$(g symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's#^origin/##')

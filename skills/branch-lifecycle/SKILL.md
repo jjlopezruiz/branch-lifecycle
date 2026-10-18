@@ -43,7 +43,8 @@ the wrong branch.
 | **Team** | another person (a colleague, an agency, a contractor) pushes to the repo, or `main` is live for other people and needs a staging step | `develop` | production; moves only by a release PR from `develop`, or a hotfix |
 | **Trunk** | one person, even with many agents, and no one else depends on an in-between state | `main` | the history of changes; a Vercel-style preview of each branch is the staging step |
 
-- Team mode is the default when `origin/develop` exists.
+- Team mode is the default when `origin/develop` (or `origin/dev`, the same role under a shorter name)
+  exists. Never create `develop` next to an existing `dev`: read the repo's own docs first.
 - Trunk mode is declared once per repo: `git config branch-lifecycle.base main`.
 - **A repo with neither is flagged** (`NO develop branch`). Ask the user which mode it is; do not
   guess. Creating `develop` changes the shared repo, so it needs their OK:
