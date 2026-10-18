@@ -25,8 +25,11 @@ It is built around one rule, learned the hard way on a shared repository:
 - **Optional hooks** — a status line at session start and an "unpushed" reminder at the end of a turn.
   Warning-only. See [`references/hooks.md`](skills/branch-lifecycle/references/hooks.md).
 
-The base branch is detected per repo: `git config branch-lifecycle.base` → `develop` if
-`origin/develop` exists → origin's default branch → `main`/`master`.
+**Two modes, declared per repo, chosen by who pushes.** *Team*: someone else pushes, so work
+integrates into `develop` and `main` moves only by release PR or hotfix. *Trunk*: one person (with any
+number of agents), so `main` is the history of changes and declared with
+`git config branch-lifecycle.base main`. In both, agents work on their own branches. A repo with
+neither is flagged and the user is asked.
 
 ## Install
 
