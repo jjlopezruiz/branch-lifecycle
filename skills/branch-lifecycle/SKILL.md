@@ -36,17 +36,26 @@ uncommitted · conflicts · worktrees`) and, when something needs doing, a `next
 read-only. **Trust it over the editor's Git sidebar**, which shows a cached picture and can show
 the wrong branch.
 
-**The base branch** is resolved in this order: `git config branch-lifecycle.base` → `develop` if
-`origin/develop` exists → origin's default branch → `main`/`master`. If the repo uses something
-else, set it once: `git config branch-lifecycle.base <name>`. If the work clearly forked from a
-different branch than the detected one, ask before merging into anything: a merge into the wrong
-base is expensive to undo.
+**The base branch is `develop`.** All work branches off `develop` and integrates back into
+`develop`. **`main` is production**: it moves only by a release PR (`develop` → `main`) or a
+hotfix, never by a feature PR and never by a direct push.
+
+- `git config branch-lifecycle.base <name>` overrides it per repo, for a repo that is trunk-based
+  on purpose.
+- **A repo with no `develop`** is flagged (`NO develop branch`), never silently treated as
+  "integrate into main". Stop and tell the user before any merge or PR. The fix is one command,
+  but it changes the shared repo, so it needs their OK:
+  `git push origin main:develop`. Keep `main` as GitHub's default branch, so tools that install
+  from the default branch (`npx skills add`, clones) get the released version, and target PRs at
+  `develop` explicitly.
+- If the work clearly forked from somewhere else, ask before merging: a merge into the wrong base
+  is expensive to undo.
 
 ---
 
 ## 1. Start
 
-1. **Never work on the base branch.** If the status line says you are on it, branch off before
+1. **Never work on `develop` or `main` directly.** If the status line says you are on it, branch off before
    the first edit.
 2. **Already isolated?** Check before creating anything:
    ```bash
@@ -174,9 +183,9 @@ branch from `git branch --show-current` before any push.
    - Rejected push = the remote moved. Go back to section 2. **Never force-push** unless the user
      asks for it in so many words.
    - Pushing is the last human checkpoint. Do not disable the confirmation the host asks for.
-5. **Open the PR against the branch you branched from.** Off `develop` → into `develop`.
-   With GitHub: `gh pr create --base <base> --fill` (follow the repo's PR template if present).
-   Report the URL.
+5. **Open the PR into `develop`** (the branch you came from), never into `main`.
+   With GitHub: `gh pr create --base develop --fill` (follow the repo's PR template if present).
+   Report the URL. If the PR page shows `main` as the target, change it before submitting.
 6. **Review goes to a peer, not upwards.** People test the way they always test; a second person
    clicks what the author never clicks. Suggest a peer reviewer. A documentation-only PR can be
    self-approved.
@@ -200,6 +209,12 @@ branch from `git branch --show-current` before any push.
 - Deleting or cleaning a worktree you did not create.
 - Merging into a base you have not confirmed.
 
+### Release: `develop` → `main`
+
+Only when the user asks to ship. Sync `develop`, build it, then open a PR from `develop` into
+`main` and tag the merge (`git tag vX.Y.Z && git push origin vX.Y.Z`). Nothing else ever targets
+`main`.
+
 ### Hotfix
 
 Production is broken and the base (`develop`) carries unfinished work: branch from **`main`**, fix
@@ -222,7 +237,9 @@ it.
 | Branch open 3+ days | Merge the base down now; aim to land it |
 | Two agents, same file | Separate branches, or sequence them |
 | Agent resolved conflicts | Verify the build, not the diff |
-| PR merged | Delete branch + worktree, start fresh from the base |
+| PR merged | Delete branch + worktree, start fresh from `develop` |
+| PR targets `main` | Wrong. Retarget to `develop` (`gh pr edit <n> --base develop`) |
+| Status says `NO develop branch` | Tell the user; with their OK `git push origin main:develop` |
 
 ## Optional: the session hooks
 

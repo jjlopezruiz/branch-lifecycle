@@ -25,8 +25,10 @@ It is built around one rule, learned the hard way on a shared repository:
 - **Optional hooks** — a status line at session start and an "unpushed" reminder at the end of a turn.
   Warning-only. See [`references/hooks.md`](skills/branch-lifecycle/references/hooks.md).
 
-The base branch is detected per repo: `git config branch-lifecycle.base` → `develop` if
-`origin/develop` exists → origin's default branch → `main`/`master`.
+**`develop` is the integration branch; `main` is production.** Work branches off `develop` and its
+PRs go back into `develop`; `main` moves only by a release PR from `develop` or a hotfix. A repo with
+no `develop` is flagged rather than silently integrated into `main`. Override per repo with
+`git config branch-lifecycle.base <name>` if a repo is trunk-based on purpose.
 
 ## Install
 

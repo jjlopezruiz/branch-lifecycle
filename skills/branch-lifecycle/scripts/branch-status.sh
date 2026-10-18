@@ -6,8 +6,8 @@
 #   --json    machine-readable output instead of the one-liner
 #
 # Read-only. It never merges, pulls, pushes or touches the working tree.
-# Base branch: `git config branch-lifecycle.base` if set, else `develop` if
-# origin has one, else origin's default branch, else main/master.
+# Base branch: `git config branch-lifecycle.base` if set, else `develop`.
+# A repo with no develop is flagged (counts fall back to its default branch).
 
 set -u
 
@@ -43,18 +43,23 @@ BRANCH=$(g branch --show-current)
 [ -z "$BRANCH" ] && BRANCH="(detached)"
 
 # --- base branch -----------------------------------------------------------
+# Work integrates into `develop`. `main` is production and only moves by a
+# release PR (develop -> main) or a hotfix. A repo without develop is flagged,
+# never silently treated as "integrate into main".
+NO_DEVELOP=0
 BASE=$(g config --get branch-lifecycle.base)
 if [ -z "$BASE" ]; then
-  if g show-ref --verify --quiet refs/remotes/origin/develop; then
+  if g show-ref --verify --quiet refs/remotes/origin/develop || g show-ref --verify --quiet refs/heads/develop; then
     BASE=develop
   else
+    NO_DEVELOP=1
     BASE=$(g symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's#^origin/##')
+    if [ -z "$BASE" ]; then
+      for b in main master; do
+        if g show-ref --verify --quiet "refs/heads/$b" || g show-ref --verify --quiet "refs/remotes/origin/$b"; then BASE=$b; break; fi
+      done
+    fi
   fi
-fi
-if [ -z "$BASE" ]; then
-  for b in main master; do
-    if g show-ref --verify --quiet "refs/heads/$b" || g show-ref --verify --quiet "refs/remotes/origin/$b"; then BASE=$b; break; fi
-  done
 fi
 BASE_REF="origin/$BASE"
 g rev-parse --verify --quiet "$BASE_REF" >/dev/null || BASE_REF="$BASE"
@@ -82,8 +87,8 @@ CONFLICTS=$(g diff --name-only --diff-filter=U | wc -l | tr -d ' ')
 
 # --- output ----------------------------------------------------------------
 if [ "$JSON" = 1 ]; then
-  printf '{"branch":"%s","base":"%s","behind":"%s","ahead":"%s","age_days":"%s","upstream":"%s","unpushed":"%s","dirty":%s,"stashes":%s,"worktrees":%s,"conflicts":%s,"fetched":"%s"}\n' \
-    "$BRANCH" "$BASE" "$BEHIND" "$AHEAD" "$AGE_DAYS" "$UPSTREAM" "$UNPUSHED" "$DIRTY" "$STASHES" "$WORKTREES" "$CONFLICTS" "$FETCHED"
+  printf '{"branch":"%s","base":"%s","behind":"%s","ahead":"%s","age_days":"%s","upstream":"%s","unpushed":"%s","dirty":%s,"stashes":%s,"worktrees":%s,"conflicts":%s,"fetched":"%s","no_develop":%s}\n' \
+    "$BRANCH" "$BASE" "$BEHIND" "$AHEAD" "$AGE_DAYS" "$UPSTREAM" "$UNPUSHED" "$DIRTY" "$STASHES" "$WORKTREES" "$CONFLICTS" "$FETCHED" "$NO_DEVELOP"
   exit 0
 fi
 
@@ -103,6 +108,7 @@ esac
 [ "$CONFLICTS" != 0 ] && parts+=("$CONFLICTS UNRESOLVED CONFLICTS")
 [ "$STASHES" != 0 ] && parts+=("$STASHES stash")
 [ "$WORKTREES" -gt 1 ] && parts+=("$WORKTREES worktrees")
+[ "$NO_DEVELOP" = 1 ] && parts+=("NO develop branch")
 [ "$FETCHED" = failed ] && parts+=("fetch failed — counts may be stale")
 [ "$FETCHED" = no ] && [ "$HAS_ORIGIN" = 1 ] && parts+=("not fetched")
 
@@ -110,7 +116,9 @@ line=$(IFS='|'; echo "${parts[*]}" | sed 's/|/ · /g')
 
 # Advice: one line, only when something needs doing.
 advice=""
-if [ "$CONFLICTS" != 0 ]; then
+if [ "$NO_DEVELOP" = 1 ]; then
+  advice="this repo has no develop: work would land on $BASE (production). Create it: git push origin $BASE:develop — or, if trunk-based on purpose: git config branch-lifecycle.base $BASE"
+elif [ "$CONFLICTS" != 0 ]; then
   advice="resolve the conflicts, then build before committing"
 elif [ -n "$BEHIND" ] && [ "$BEHIND" != 0 ]; then
   advice="bring $BASE into this branch before resolving or opening a PR"
