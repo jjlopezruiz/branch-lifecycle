@@ -25,10 +25,11 @@ It is built around one rule, learned the hard way on a shared repository:
 - **Optional hooks** — a status line at session start and an "unpushed" reminder at the end of a turn.
   Warning-only. See [`references/hooks.md`](skills/branch-lifecycle/references/hooks.md).
 
-**`develop` is the integration branch; `main` is production.** Work branches off `develop` and its
-PRs go back into `develop`; `main` moves only by a release PR from `develop` or a hotfix. A repo with
-no `develop` is flagged rather than silently integrated into `main`. Override per repo with
-`git config branch-lifecycle.base <name>` if a repo is trunk-based on purpose.
+**Two modes, declared per repo, chosen by who pushes.** *Team*: someone else pushes, so work
+integrates into `develop` and `main` moves only by release PR or hotfix. *Trunk*: one person (with any
+number of agents), so `main` is the history of changes and declared with
+`git config branch-lifecycle.base main`. In both, agents work on their own branches. A repo with
+neither is flagged and the user is asked.
 
 ## Install
 

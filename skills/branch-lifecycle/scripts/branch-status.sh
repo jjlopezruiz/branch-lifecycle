@@ -6,8 +6,8 @@
 #   --json    machine-readable output instead of the one-liner
 #
 # Read-only. It never merges, pulls, pushes or touches the working tree.
-# Base branch: `git config branch-lifecycle.base` if set, else `develop`.
-# A repo with no develop is flagged (counts fall back to its default branch).
+# Base branch: `git config branch-lifecycle.base` if set (main/master = declared
+# trunk mode), else `develop`. A repo with neither is flagged.
 
 set -u
 
@@ -47,7 +47,11 @@ BRANCH=$(g branch --show-current)
 # release PR (develop -> main) or a hotfix. A repo without develop is flagged,
 # never silently treated as "integrate into main".
 NO_DEVELOP=0
+TRUNK=0
 BASE=$(g config --get branch-lifecycle.base)
+# Declared trunk: the repo says its base is main/master on purpose (one person,
+# no staging step). Being on it is then normal for small solo changes.
+case "$BASE" in main|master) TRUNK=1 ;; esac
 if [ -z "$BASE" ]; then
   if g show-ref --verify --quiet refs/remotes/origin/develop || g show-ref --verify --quiet refs/heads/develop; then
     BASE=develop
@@ -87,13 +91,15 @@ CONFLICTS=$(g diff --name-only --diff-filter=U | wc -l | tr -d ' ')
 
 # --- output ----------------------------------------------------------------
 if [ "$JSON" = 1 ]; then
-  printf '{"branch":"%s","base":"%s","behind":"%s","ahead":"%s","age_days":"%s","upstream":"%s","unpushed":"%s","dirty":%s,"stashes":%s,"worktrees":%s,"conflicts":%s,"fetched":"%s","no_develop":%s}\n' \
-    "$BRANCH" "$BASE" "$BEHIND" "$AHEAD" "$AGE_DAYS" "$UPSTREAM" "$UNPUSHED" "$DIRTY" "$STASHES" "$WORKTREES" "$CONFLICTS" "$FETCHED" "$NO_DEVELOP"
+  printf '{"branch":"%s","base":"%s","behind":"%s","ahead":"%s","age_days":"%s","upstream":"%s","unpushed":"%s","dirty":%s,"stashes":%s,"worktrees":%s,"conflicts":%s,"fetched":"%s","no_develop":%s,"trunk":%s}\n' \
+    "$BRANCH" "$BASE" "$BEHIND" "$AHEAD" "$AGE_DAYS" "$UPSTREAM" "$UNPUSHED" "$DIRTY" "$STASHES" "$WORKTREES" "$CONFLICTS" "$FETCHED" "$NO_DEVELOP" "$TRUNK"
   exit 0
 fi
 
 parts=("branch $BRANCH")
-if [ "$BRANCH" = "$BASE" ]; then
+if [ "$BRANCH" = "$BASE" ] && [ "$TRUNK" = 1 ]; then
+  parts+=("on $BASE (trunk mode)")
+elif [ "$BRANCH" = "$BASE" ]; then
   parts+=("you are ON the base branch — branch off before changing anything")
 elif [ -n "$BEHIND" ]; then
   parts+=("$BEHIND behind / $AHEAD ahead of $BASE_REF")
@@ -117,11 +123,13 @@ line=$(IFS='|'; echo "${parts[*]}" | sed 's/|/ · /g')
 # Advice: one line, only when something needs doing.
 advice=""
 if [ "$NO_DEVELOP" = 1 ]; then
-  advice="this repo has no develop: work would land on $BASE (production). Create it: git push origin $BASE:develop — or, if trunk-based on purpose: git config branch-lifecycle.base $BASE"
+  advice="no develop and no declared mode. Solo repo: git config branch-lifecycle.base $BASE (trunk). Others push here: git push origin $BASE:develop"
 elif [ "$CONFLICTS" != 0 ]; then
   advice="resolve the conflicts, then build before committing"
 elif [ -n "$BEHIND" ] && [ "$BEHIND" != 0 ]; then
   advice="bring $BASE into this branch before resolving or opening a PR"
+elif [ "$TRUNK" = 1 ] && [ "$BRANCH" = "$BASE" ] && [ "$WORKTREES" -gt 1 ]; then
+  advice="trunk mode with $WORKTREES worktrees: agents work on their own branches, never directly on $BASE"
 elif [ -n "$AGE_DAYS" ] && [ "$AGE_DAYS" -ge 3 ]; then
   advice="long-lived branch: merge $BASE down now, and aim to land it"
 fi

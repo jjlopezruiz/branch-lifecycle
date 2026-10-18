@@ -36,18 +36,20 @@ uncommitted · conflicts · worktrees`) and, when something needs doing, a `next
 read-only. **Trust it over the editor's Git sidebar**, which shows a cached picture and can show
 the wrong branch.
 
-**The base branch is `develop`.** All work branches off `develop` and integrates back into
-`develop`. **`main` is production**: it moves only by a release PR (`develop` → `main`) or a
-hotfix, never by a feature PR and never by a direct push.
+**Each repo declares one of two modes. Pick by who pushes, not by habit:**
 
-- `git config branch-lifecycle.base <name>` overrides it per repo, for a repo that is trunk-based
-  on purpose.
-- **A repo with no `develop`** is flagged (`NO develop branch`), never silently treated as
-  "integrate into main". Stop and tell the user before any merge or PR. The fix is one command,
-  but it changes the shared repo, so it needs their OK:
-  `git push origin main:develop`. Keep `main` as GitHub's default branch, so tools that install
-  from the default branch (`npx skills add`, clones) get the released version, and target PRs at
-  `develop` explicitly.
+| Mode | When | Base | `main` |
+|---|---|---|---|
+| **Team** | another person (a colleague, an agency, a contractor) pushes to the repo, or `main` is live for other people and needs a staging step | `develop` | production; moves only by a release PR from `develop`, or a hotfix |
+| **Trunk** | one person, even with many agents, and no one else depends on an in-between state | `main` | the history of changes; a Vercel-style preview of each branch is the staging step |
+
+- Team mode is the default when `origin/develop` exists.
+- Trunk mode is declared once per repo: `git config branch-lifecycle.base main`.
+- **A repo with neither is flagged** (`NO develop branch`). Ask the user which mode it is; do not
+  guess. Creating `develop` changes the shared repo, so it needs their OK:
+  `git push origin main:develop`. Keep `main` as GitHub's default branch either way.
+- **Agents never commit straight to the base, in either mode.** One branch (and worktree) per agent
+  task, merged by PR. In trunk mode the person may commit small solo changes directly to `main`.
 - If the work clearly forked from somewhere else, ask before merging: a merge into the wrong base
   is expensive to undo.
 
@@ -55,8 +57,8 @@ hotfix, never by a feature PR and never by a direct push.
 
 ## 1. Start
 
-1. **Never work on `develop` or `main` directly.** If the status line says you are on it, branch off before
-   the first edit.
+1. **Never let an agent work on the base directly.** If the status line says you are on it, branch off
+   before the first edit. (Trunk mode: a person's small solo change on `main` is fine.)
 2. **Already isolated?** Check before creating anything:
    ```bash
    [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] && echo "linked worktree"
@@ -183,9 +185,9 @@ branch from `git branch --show-current` before any push.
    - Rejected push = the remote moved. Go back to section 2. **Never force-push** unless the user
      asks for it in so many words.
    - Pushing is the last human checkpoint. Do not disable the confirmation the host asks for.
-5. **Open the PR into `develop`** (the branch you came from), never into `main`.
-   With GitHub: `gh pr create --base develop --fill` (follow the repo's PR template if present).
-   Report the URL. If the PR page shows `main` as the target, change it before submitting.
+5. **Open the PR into the repo's base** — `develop` in team mode (never `main`), `main` in trunk mode.
+   With GitHub: `gh pr create --base <base> --fill` (follow the repo's PR template if present).
+   Report the URL. In team mode, if the PR page shows `main` as the target, change it.
 6. **Review goes to a peer, not upwards.** People test the way they always test; a second person
    clicks what the author never clicks. Suggest a peer reviewer. A documentation-only PR can be
    self-approved.
@@ -209,7 +211,7 @@ branch from `git branch --show-current` before any push.
 - Deleting or cleaning a worktree you did not create.
 - Merging into a base you have not confirmed.
 
-### Release: `develop` → `main`
+### Release: `develop` → `main` (team mode)
 
 Only when the user asks to ship. Sync `develop`, build it, then open a PR from `develop` into
 `main` and tag the merge (`git tag vX.Y.Z && git push origin vX.Y.Z`). Nothing else ever targets
@@ -238,8 +240,8 @@ it.
 | Two agents, same file | Separate branches, or sequence them |
 | Agent resolved conflicts | Verify the build, not the diff |
 | PR merged | Delete branch + worktree, start fresh from `develop` |
-| PR targets `main` | Wrong. Retarget to `develop` (`gh pr edit <n> --base develop`) |
-| Status says `NO develop branch` | Tell the user; with their OK `git push origin main:develop` |
+| Team repo, PR targets `main` | Wrong. Retarget to `develop` (`gh pr edit <n> --base develop`) |
+| Status says `NO develop branch` | Ask: solo → `git config branch-lifecycle.base main`; others push → with OK, `git push origin main:develop` |
 
 ## Optional: the session hooks
 
